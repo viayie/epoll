@@ -270,6 +270,23 @@ int main(int argc, char *argv[])
 
     /*死循环*/
     while(1){
+        /* 超时验证，每次测试100个链接，不测试listenfd 当客户端60秒内没有和服务器通信，则关闭此客户端链接 */
+        long now = time(NULL);                          //当前时间
+        for (i = 0; i < 100; i++, checkpos++) {         //一次循环检测100个。 使用checkpos控制检测对象
+            if (checkpos == MAX_EVENTS)
+                checkpos = 0;
+            if (g_events[checkpos].status != 1)         //不在红黑树 g_efd 上
+                continue;
+
+            long duration = now - g_events[checkpos].last_active;       //客户端不活跃的世间
+
+            if (duration >= 60) {
+                close(g_events[checkpos].fd);                           //关闭与该客户端链接
+                printf("[fd=%d] timeout\n", g_events[checkpos].fd);
+                eventdel(g_efd, &g_events[checkpos]);                   //将该客户端 从红黑树 g_efd移除
+            }
+        }
+
         /*开始监听*/
         //将满足事件的文件描述符加入到events数组中，1秒钟没有事件满足，返回0       
         nfd = epoll_wait(g_efd, events, MAX_EVENTS+1, 1000);
